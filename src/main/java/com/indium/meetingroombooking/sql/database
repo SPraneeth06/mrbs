@@ -1,0 +1,155 @@
+-- Insert data from empdata.employee_details into conferencebooking.user
+create database meetingroombooking;
+use meetingroombooking;
+CREATE TABLE meetingroombooking.user (
+    user_id BIGINT PRIMARY KEY,
+    employee_code VARCHAR(45),
+    company_email VARCHAR(255),
+    designation VARCHAR(100),
+    department VARCHAR(45),
+    login_token VARCHAR(3000),
+    employee_status VARCHAR(45),
+    admin_flag tinyint,
+    admin_portal_login_flag tinyint
+);
+
+INSERT INTO meetingroombooking.user (
+    user_id,
+    employee_code,
+    company_email,
+    designation,
+    department,
+    login_token,
+    employee_status,
+    admin_flag ,
+    admin_portal_login_flag
+)
+SELECT
+    employee_id,
+    employee_code,
+    company_email,
+    designation,
+    department,
+    login_token,
+    employee_status,
+    admin_flag ,
+    admin_portal_login_flag
+FROM empdata.employee_details;
+
+-- To query data across databases, you can use fully qualified names
+SELECT
+    c.user_id,
+    c.employee_code,
+    e.first_name,
+    e.last_name,
+    e.department_name
+FROM meetingroombooking.user c
+JOIN empdata.employee_details e ON c.user_id = e.employee_id;
+
+
+CREATE TABLE config_master (
+    config_master_id SERIAL PRIMARY KEY,  -- Auto-incrementing primary key
+    config_param VARCHAR(255) NOT NULL,   -- Parameter name (e.g., "mrbs_owner")
+    config_employee_code JSON NOT NULL    -- JSON data for employee details
+);
+INSERT INTO config_master (config_param, config_employee_code)
+VALUES
+(
+    'meetingroombooking_owner',
+    '[{"name": "Rachumanti Nanda Gopala Krishnudu Yadav", "email": "rachumanti.yadav@indiumsoft.com"}]'
+);
+
+INSERT INTO config_master (config_param, config_employee_code)
+VALUES
+(
+    'meetingroombooking_owner',
+    '[{"name": "Shinde Praneeth", "email": "shinde.praneeth@indium.tech"}]'
+);
+SELECT JSON_UNQUOTE(JSON_EXTRACT(c.config_employee_code, '$[*].email'))
+FROM config_master c;
+
+
+
+-- Create location_details table
+CREATE TABLE location_details (
+location_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+location_name VARCHAR(50) NOT NULL,
+is_active CHAR(1) NOT NULL CHECK (is_active IN ('y', 'n')),
+created_by BIGINT,
+created_on DATETIME DEFAULT CURRENT_TIMESTAMP,
+admin_users_id JSON,
+booking_allowed_window_in_days SMALLINT UNSIGNED,
+notice_duration_to_book_in_min TINYINT UNSIGNED,
+recurrence_count_allowed TINYINT UNSIGNED,
+FOREIGN KEY (created_by) REFERENCES user(user_id) ON DELETE SET NULL);
+
+-- Create room_details table
+CREATE TABLE room_details (
+room_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+room_name VARCHAR(255) NOT NULL,
+external_display_availability CHAR(1) NOT NULL CHECK (external_display_availability IN ('y', 'n')),
+facilities LONGTEXT NOT NULL,
+capacity SMALLINT NOT NULL,
+location_id SMALLINT UNSIGNED NOT NULL,
+booking_allowed CHAR(1) DEFAULT 'y' CHECK (booking_allowed IN ('y', 'n')),
+is_approval_needed CHAR(1) NOT NULL DEFAULT 'n' CHECK (is_approval_needed IN ('y', 'n')),
+is_active CHAR(1) NOT NULL DEFAULT 'y' CHECK (is_active IN ('y', 'n')),
+recurrence_allowed CHAR(1) NOT NULL DEFAULT 'y' CHECK (recurrence_allowed IN ('y', 'n')),
+created_by BIGINT,
+created_on DATETIME DEFAULT CURRENT_TIMESTAMP,
+FOREIGN KEY (location_id) REFERENCES location_details(location_id) ON DELETE CASCADE,
+FOREIGN KEY (created_by) REFERENCES user(user_id) ON DELETE SET NULL);
+
+-- Create bookings table
+CREATE TABLE bookings (
+booking_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+location_id SMALLINT UNSIGNED NOT NULL,
+room_id SMALLINT UNSIGNED NOT NULL,
+user_id BIGINT,
+booked_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+event_date DATE NOT NULL,
+start_time DATETIME NOT NULL,
+end_time DATETIME NOT NULL,
+event_name VARCHAR(255) NOT NULL,
+status ENUM('awaiting_approval', 'approved', 'cancelled', 'rejected') NOT NULL unique,
+approved_by BIGINT,
+approved_on DATETIME,
+approval_remarks VARCHAR(255),
+is_recurring CHAR(1) CHECK (is_recurring IN ('y', 'n')) NOT NULL DEFAULT 'n',
+recurrence_id SMALLINT UNSIGNED,
+FOREIGN KEY (location_id) REFERENCES location_details(location_id) ON DELETE CASCADE,
+FOREIGN KEY (room_id) REFERENCES room_details(room_id) ON DELETE CASCADE,
+FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE,
+FOREIGN KEY (approved_by) REFERENCES user(user_id) ON DELETE SET NULL);
+
+-- Create audit_log table
+CREATE TABLE audit_log (
+audit_log_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+booking_id SMALLINT UNSIGNED NOT NULL,
+change_type ENUM('created','modified','cancelled') NOT NULL,
+timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+comments LONGTEXT NOT NULL,
+created_by BIGINT,
+booking_status ENUM('awaiting_approval', 'approved', 'cancelled', 'rejected'),
+FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
+FOREIGN KEY (created_by) REFERENCES user(user_id) ON DELETE SET NULL,
+FOREIGN KEY (booking_status) REFERENCES bookings(status) ON DELETE SET NULL);
+
+-- Create email_communication_details table
+CREATE TABLE email_communication_details (
+email_comm_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+from_user VARCHAR(300),
+email_to JSON,
+email_cc JSON,
+subject VARCHAR(255),
+body TEXT,
+created_on DATETIME DEFAULT CURRENT_TIMESTAMP);
+
+-- Create recurrence_mapping table
+CREATE TABLE recurrence_mapping (
+recurrence_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+booking_id SMALLINT UNSIGNED NOT NULL,
+recurrence_type ENUM('daily','weekly') NOT NULL,
+recurrence_end_date DATETIME,
+repeat_on_days JSON,
+FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE);
