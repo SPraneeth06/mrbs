@@ -120,6 +120,16 @@ public class Booking {
      */
     @Column(name = "is_recurring", columnDefinition = "CHAR(1) CHECK (is_recurring IN ('y', 'n')) NOT NULL DEFAULT 'n'")
     private char isRecurring;
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
 
     /**
      * Details about the recurrence of the booking (if applicable).

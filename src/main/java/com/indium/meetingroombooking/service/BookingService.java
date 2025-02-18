@@ -115,6 +115,7 @@ public class BookingService {
         booking.setLocation(location);
         booking.setRoom(room);
         booking.setBookedOn(now);
+
         booking.setStatus(MeetingStatus.AWAITING_APPROVAL);
 
         // ✅ Save Booking
@@ -140,77 +141,60 @@ public class BookingService {
      */
     @Transactional
     public String handleBookingStatusUpdate(Short bookingId, String decision, String remarks, String authorization) {
-        // ✅ Extract user email from token
         String userEmail = tokenService.getEmailFromToken(authorization.replace("Bearer ", ""));
-        log.info("🔍 Email extracted for status update: " + userEmail);
-
-        // ✅ Retrieve the user
         User user = userRepository.findByCompanyEmail(userEmail)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        // ✅ Retrieve the booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
 
-        // ✅ Retrieve the associated location
         LocationDetails location = booking.getLocation();
-        log.info("✅ Booking retrieved: " + bookingId + " | Status: " + booking.getStatus());
-        log.info("✅ Location retrieved: " + location.getLocationId() + " | Raw Admin Users: " + location.getAdminUsers());
 
-        // ✅ Check if user is an admin (Parse JSON `admin_users` field)
+        // Parse admin user IDs from JSON
         List<Short> adminUserIds = new Gson().fromJson(location.getAdminUsers(), new TypeToken<List<Short>>() {}.getType());
         boolean isAdmin = adminUserIds.contains(user.getUserId().shortValue());
-        log.info("🔍 Checking if user is admin: " + user.getUserId() + " --> " + isAdmin);
 
-        // ✅ Check if user booked the meeting
         boolean isBookedByUser = booking.getUserId().getUserId().equals(user.getUserId());
-        log.info("🔍 Checking if user booked the meeting: " + user.getUserId() + " --> " + isBookedByUser);
 
         String comments;
 
         switch (decision.toUpperCase()) {
             case "APPROVED":
                 if (!isAdmin) {
-                    log.warn("❌ Access Denied: Only an admin can approve a booking.");
                     throw new SecurityException("❌ Only an admin can approve a booking.");
                 }
                 booking.setStatus(MeetingStatus.APPROVED);
                 booking.setApprovedBy(user);
                 booking.setApprovedOn(LocalDateTime.now());
                 booking.setApprovalRemarks(remarks != null ? remarks : "Approved by admin");
-                comments = "Booking approved by admin.";
+                comments = "Booking approved by Admin: " + user.getCompanyEmail();
                 break;
 
             case "REJECTED":
                 if (!isAdmin) {
-                    log.warn("❌ Access Denied: Only an admin can reject a booking.");
                     throw new SecurityException("❌ Only an admin can reject a booking.");
                 }
                 booking.setStatus(MeetingStatus.REJECTED);
                 booking.setApprovalRemarks(remarks != null ? remarks : "Rejected by admin");
                 booking.setApprovedOn(LocalDateTime.now());
-                comments = "Booking rejected by admin.";
+                comments = "Booking rejected by Admin: " + user.getCompanyEmail();
                 break;
 
             case "CANCELLED":
                 if (!isBookedByUser) {
-                    log.warn("❌ Access Denied: Only the user who booked can cancel.");
                     throw new SecurityException("❌ Only the user who booked can cancel.");
                 }
                 booking.setStatus(MeetingStatus.CANCELLED);
                 booking.setApprovalRemarks("Cancelled by user");
                 booking.setApprovedOn(null);
-                comments = "Booking cancelled by user.";
+                comments = "Booking cancelled by User: " + user.getCompanyEmail();
                 break;
 
             default:
                 throw new IllegalArgumentException("❌ Invalid decision. Use 'APPROVED', 'REJECTED', or 'CANCELLED'.");
         }
 
-        // ✅ Save changes
         bookingRepository.save(booking);
-
-        // ✅ Log the status update
         logAuditEntry(booking, AuditLogs.ChangeType.MODIFIED, comments, user);
 
         return "✅ Booking " + decision.toLowerCase() + "d successfully.";
@@ -285,6 +269,10 @@ public class BookingService {
             existingBooking.setIsRecurring(newIsRecurring);
             changeComments.append("Recurrence status updated. ");
             statusResetRequired = true;  // ✅ Set status to AWAITING_APPROVAL
+        }
+        if (updates.containsKey("description")) {
+            existingBooking.setDescription((String) updates.get("description"));
+            changeComments.append("Description updated. ");
         }
 
         // **Apply all other updates** (Non-status affecting)
@@ -425,7 +413,7 @@ public class BookingService {
         auditLog.setBooking(booking);
         auditLog.setChangeType(changeType);
         auditLog.setTimestamp(LocalDateTime.now());
-        auditLog.setComments(comments);
+        auditLog.setComments(comments);  // 📌 Stores a detailed description of the change
         auditLog.setCreatedBy(createdBy);
 
         auditLogsRepository.save(auditLog);

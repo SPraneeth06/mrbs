@@ -17,41 +17,6 @@ public interface BookingRepository extends CrudRepository<Booking, Short> {
     List<Booking> findByRoom(RoomDetails room);
 
     List<Booking> findByLocation(LocationDetails location);
-    // ✅ Check if new booking overlaps an existing one
-    @Query("""
-        SELECT COUNT(b) > 0 
-        FROM Booking b 
-        WHERE b.room = :room 
-        AND (:startTime BETWEEN b.startTime AND b.endTime 
-             OR :endTime BETWEEN b.startTime AND b.endTime)
-    """)
-    boolean existsOverlapBooking(@Param("room") RoomDetails room,
-                                 @Param("startTime") LocalDateTime startTime,
-                                 @Param("endTime") LocalDateTime endTime);
-
-    // ✅ Check if the booking is within an existing one
-    @Query("""
-        SELECT COUNT(b) > 0 
-        FROM Booking b 
-        WHERE b.room = :room 
-        AND (b.startTime < :endTime AND b.endTime > :startTime)
-    """)
-    boolean existsBookingWithinInterval(@Param("room") RoomDetails room,
-                                        @Param("startTime") LocalDateTime startTime,
-                                        @Param("endTime") LocalDateTime endTime);
-
-    // ✅ **Fix Buffer Time Query**
-    @Query("""
-    SELECT COUNT(b) > 0 
-    FROM Booking b 
-    WHERE b.room = :room 
-    AND (
-        b.endTime >= :bufferStartTime 
-        AND b.startTime <= :endTime
-        OR b.startTime <= :bufferEndTime 
-        AND b.endTime >= :startTime
-    )
-""")
     boolean existsBufferTimeConflict(@Param("room") RoomDetails room,
                                      @Param("startTime") LocalDateTime startTime,
                                      @Param("endTime") LocalDateTime endTime,
@@ -59,6 +24,42 @@ public interface BookingRepository extends CrudRepository<Booking, Short> {
                                      @Param("bufferEndTime") LocalDateTime bufferEndTime);
 
 }
+    // ✅ Check if new booking overlaps an existing one
+//    @Query("""
+//        SELECT COUNT(b) > 0
+//        FROM Booking b
+//        WHERE b.room = :room
+//        AND (:startTime BETWEEN b.startTime AND b.endTime
+//             OR :endTime BETWEEN b.startTime AND b.endTime)
+//    """)
+//    boolean existsOverlapBooking(@Param("room") RoomDetails room,
+//                                 @Param("startTime") LocalDateTime startTime,
+//                                 @Param("endTime") LocalDateTime endTime);
+//
+//    // ✅ Check if the booking is within an existing one
+//    @Query("""
+//        SELECT COUNT(b) > 0
+//        FROM Booking b
+//        WHERE b.room = :room
+//        AND (b.startTime < :endTime AND b.endTime > :startTime)
+//    """)
+//    boolean existsBookingWithinInterval(@Param("room") RoomDetails room,
+//                                        @Param("startTime") LocalDateTime startTime,
+//                                        @Param("endTime") LocalDateTime endTime);
+//
+//    // ✅ **Fix Buffer Time Query**
+//    @Query("""
+//    SELECT COUNT(b) > 0
+//    FROM Booking b
+//    WHERE b.room = :room
+//    AND (
+//        b.endTime >= :bufferStartTime
+//        AND b.startTime <= :endTime
+//        OR b.startTime <= :bufferEndTime
+//        AND b.endTime >= :startTime
+//    )
+//""")
+
 
 
 

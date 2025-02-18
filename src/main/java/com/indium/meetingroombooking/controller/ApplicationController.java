@@ -282,6 +282,7 @@ public class ApplicationController {
             booking.setEndTime(LocalDateTime.parse((String) payload.get("endTime")));
             booking.setEventName((String) payload.get("eventName"));
             booking.setIsRecurring(((String) payload.get("isRecurring")).charAt(0));
+            booking.setDescription((String) payload.get("description"));
 
             // 🚀 Handle Recurring Booking Details
             if (booking.getIsRecurring() == 'y') {
